@@ -284,7 +284,6 @@ const App = () => {
 
         <div className="text-center mb-8">
           <h1 className="text-4xl font-light text-pink-600 mb-2">Visualização de Mercadorias</h1>
-          <p className="text-pink-400 font-light">Gerencie suas entradas com elegância</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

@@ -8,6 +8,21 @@ const Upload = ({ className }) => (
   </svg>
 );
 
+const Settings = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+    <circle cx="12" cy="12" r="3"></circle>
+  </svg>
+);
+
+const Download = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+    <polyline points="7 10 12 15 17 10"></polyline>
+    <line x1="12" y1="15" x2="12" y2="3"></line>
+  </svg>
+);
+
 const Search = ({ className }) => (
   <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="8"></circle>
@@ -50,6 +65,12 @@ const App = () => {
   const [sortOrder, setSortOrder] = useState('desc');
   const [notification, setNotification] = useState(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [csvData, setCsvData] = useState(null);
+  const [cleanedData, setCleanedData] = useState(null);
 
   const showNotification = (type, message) => {
     setNotification({ type, message });
@@ -61,6 +82,155 @@ const App = () => {
     setExpandedDocs(new Set());
     setShowClearConfirm(false);
     showNotification('success', 'Dados limpos com sucesso!');
+  };
+
+  const handleAdminLogin = () => {
+    if (adminUsername === 'acqua' && adminPassword === '13706') {
+      setShowAdminLogin(false);
+      setShowAdminPanel(true);
+      setAdminUsername('');
+      setAdminPassword('');
+      showNotification('success', 'Login administrativo realizado!');
+    } else {
+      showNotification('error', 'Credenciais inválidas!');
+    }
+  };
+
+  const handleAdminFileUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result;
+
+        let separator = ',';
+        const firstLine = text.split('\n')[0];
+        const semicolonCount = (firstLine.match(/;/g) || []).length;
+        const commaCount = (firstLine.match(/,/g) || []).length;
+        const tabCount = (firstLine.match(/\t/g) || []).length;
+
+        if (semicolonCount > commaCount && semicolonCount > tabCount) {
+          separator = ';';
+        } else if (tabCount > commaCount && tabCount > semicolonCount) {
+          separator = '\t';
+        }
+
+        const lines = text.split('\n').filter(line => line.trim());
+
+        if (lines.length < 2) {
+          showNotification('error', 'Arquivo CSV vazio ou inválido');
+          return;
+        }
+
+        const rawHeaders = lines[0].split(separator);
+        const headers = rawHeaders.map(h =>
+          h.trim()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^\w\s]/g, '')
+            .replace(/\s+/g, ' ')
+        );
+
+        const docIndex = headers.findIndex(h =>
+          h.includes('numero') && h.includes('documento')
+        );
+
+        let dateIndex = headers.findIndex(h =>
+          h.includes('data') && h.includes('entrada')
+        );
+        if (dateIndex === -1) {
+          dateIndex = headers.findIndex(h =>
+            h.includes('data') && h.includes('emissao')
+          );
+        }
+
+        const codeIndex = headers.findIndex(h =>
+          h.includes('codigo') && h.includes('produto')
+        );
+        const descIndex = headers.findIndex(h =>
+          h.includes('descri') && h.includes('produto')
+        );
+
+        let qtyIndex = headers.findIndex(h => {
+          const normalized = h.replace(/\s+/g, ' ').trim();
+          return normalized === 'quantidade de itens' || normalized === 'qtd de itens' || normalized === 'qtde de itens';
+        });
+
+        if (qtyIndex === -1) {
+          qtyIndex = headers.findIndex(h =>
+            h.includes('quantidade') && !h.includes('unidade')
+          );
+        }
+
+        if ([docIndex, dateIndex, codeIndex, descIndex, qtyIndex].some(i => i === -1)) {
+          const missing = [];
+          if (docIndex === -1) missing.push('Número do Documento');
+          if (dateIndex === -1) missing.push('Data de entrada/emissão');
+          if (codeIndex === -1) missing.push('Código do produto');
+          if (descIndex === -1) missing.push('Descrição Produto');
+          if (qtyIndex === -1) missing.push('Quantidade');
+
+          showNotification('error', `Colunas não encontradas: ${missing.join(', ')}`);
+          return;
+        }
+
+        // Criar CSV limpo com apenas as colunas necessárias
+        const cleanedLines = [];
+        cleanedLines.push('Número do Documento,Data de entrada,Código do produto,Descrição Produto,Quantidade de itens');
+
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          const values = line.split(separator).map(v => v.trim().replace(/^["']|["']$/g, ''));
+          if (values.length < 3) continue;
+
+          const cleanedRow = [
+            values[docIndex] || 'N/A',
+            values[dateIndex] || '',
+            values[codeIndex] || '',
+            values[descIndex] || '',
+            values[qtyIndex] || '0'
+          ].map(v => `"${v}"`).join(',');
+
+          cleanedLines.push(cleanedRow);
+        }
+
+        const cleanedCsv = cleanedLines.join('\n');
+        setCleanedData(cleanedCsv);
+        showNotification('success', `Arquivo processado! ${cleanedLines.length - 1} linhas encontradas.`);
+        event.target.value = '';
+      } catch (error) {
+        showNotification('error', 'Erro ao processar CSV: ' + error);
+      }
+    };
+
+    reader.onerror = () => {
+      showNotification('error', 'Erro ao ler o arquivo');
+    };
+
+    reader.readAsText(file, 'ISO-8859-1');
+  };
+
+  const downloadCleanedCSV = () => {
+    if (!cleanedData) return;
+
+    const blob = new Blob([cleanedData], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'mercadorias_limpo.csv');
+    link.style.visibility = 'hidden';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showNotification('success', 'CSV limpo baixado com sucesso!');
   };
 
   const handleFileUpload = (event) => {
@@ -241,6 +411,117 @@ const App = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-orange-50 p-6">
       <div className="max-w-7xl mx-auto">
+        {showAdminLogin && (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
+            style={{zIndex: 99999}}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full border-2 border-purple-200">
+              <h3 className="text-xl font-light text-purple-600 mb-3">Acesso Administrativo</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-purple-600 mb-2 font-light">Usuário</label>
+                  <input
+                    type="text"
+                    value={adminUsername}
+                    onChange={(e) => setAdminUsername(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-purple-200 focus:border-purple-400 focus:outline-none bg-white/50"
+                    placeholder="Digite o usuário"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-purple-600 mb-2 font-light">Senha</label>
+                  <input
+                    type="password"
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
+                    className="w-full px-4 py-3 rounded-xl border border-purple-200 focus:border-purple-400 focus:outline-none bg-white/50"
+                    placeholder="Digite a senha"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowAdminLogin(false);
+                    setAdminUsername('');
+                    setAdminPassword('');
+                  }}
+                  className="flex-1 px-4 py-3 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors font-light"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleAdminLogin}
+                  className="flex-1 px-4 py-3 rounded-xl bg-purple-500 text-white hover:bg-purple-600 transition-colors font-light"
+                >
+                  Entrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showAdminPanel && (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
+            style={{zIndex: 99999}}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-2xl w-full border-2 border-purple-200">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-light text-purple-600">Painel Administrativo</h3>
+                <button
+                  onClick={() => {
+                    setShowAdminPanel(false);
+                    setCleanedData(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="bg-purple-50 rounded-xl p-4 mb-6">
+                <p className="text-purple-600 text-sm font-light">
+                  Esta ferramenta permite processar arquivos CSV e extrair apenas as colunas necessárias para importação na aplicação principal.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-purple-600 mb-2 font-light">Upload de CSV para Limpeza</label>
+                  <label className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-400 to-purple-500 text-white px-4 py-3 rounded-xl cursor-pointer hover:from-purple-500 hover:to-purple-600 transition-all shadow-md">
+                    <Upload className="w-4 h-4" />
+                    <span className="text-sm font-light">Selecionar Arquivo CSV</span>
+                    <input type="file" accept=".csv" onChange={handleAdminFileUpload} className="hidden" />
+                  </label>
+                </div>
+
+                {cleanedData && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-green-700 font-light">✓ Arquivo processado com sucesso!</p>
+                        <p className="text-green-600 text-sm mt-1">
+                          Colunas extraídas: Número do Documento, Data de entrada, Código do produto, Descrição Produto, Quantidade de itens
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={downloadCleanedCSV}
+                      className="mt-4 w-full flex items-center justify-center gap-2 bg-green-500 text-white px-4 py-3 rounded-xl hover:bg-green-600 transition-colors font-light"
+                    >
+                      <Download className="w-4 h-4" />
+                      Baixar CSV Limpo
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {showClearConfirm && (
           <div
             className="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
@@ -345,6 +626,13 @@ const App = () => {
           </div>
 
           <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-pink-100">
+            <button
+              onClick={() => setShowAdminLogin(true)}
+              className="px-4 py-2 rounded-xl bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors text-sm flex items-center gap-2 font-light"
+            >
+              <Settings className="w-4 h-4" />
+              Administrativo
+            </button>
             <button
               onClick={() => setShowClearConfirm(true)}
               className="px-4 py-2 rounded-xl bg-red-100 text-red-600 hover:bg-red-200 transition-colors text-sm flex items-center gap-2 ml-auto font-light"

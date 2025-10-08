@@ -179,7 +179,7 @@ const App = () => {
 
         // Criar CSV limpo com apenas as colunas necessárias
         const cleanedLines = [];
-        cleanedLines.push('Número do Documento,Data de entrada,Código do produto,Descrição Produto,Quantidade de itens');
+        cleanedLines.push('Numero Documento,Data entrada,Codigo Produto,Descricao Produto,Quantidade de itens');
 
         for (let i = 1; i < lines.length; i++) {
           const line = lines[i].trim();
